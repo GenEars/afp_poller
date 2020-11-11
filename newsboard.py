@@ -7,8 +7,10 @@ Created on Mon Nov  9 21:27:31 2020
 
 import json
 import logging
+import os
 import random
 import platform
+import signal
 import sys
 
 #from tkinter import *  # https://python.doctor/page-tkinter-interface-graphique-python-tutoriel
@@ -27,6 +29,7 @@ logging.basicConfig(format=loggingFormatString, level=logging.DEBUG)
 logging.info('INIT')
 
 logging.info("INIT:platform.system=%s", platform.system())
+logging.info("INIT:script.PID=%s", os.getpid())
 
 # =============================================================================
 # GUI definitions
@@ -205,7 +208,38 @@ def clavier(event):
         
     
 # =============================================================================
+def readConfiguration(signalNumber, frame):
+    logging.debug("SIGNAL:Received=%s", '(SIGHUP) reading configuration')
+    return
 
+def terminateProcess(signalNumber, frame):
+    logging.debug("SIGNAL:Received=%s", '(SIGTERM) terminating the process')
+    sys.exit()
+    
+def receiveSignal(signalNumber, frame):
+    logging.debug("SIGNAL:Received=%s", signalNumber)
+    return
+
+def register_signals():
+    # register the signals to be caught
+    signal.signal(signal.SIGHUP, readConfiguration)
+    signal.signal(signal.SIGINT, receiveSignal)
+    signal.signal(signal.SIGQUIT, receiveSignal)
+    signal.signal(signal.SIGILL, receiveSignal)
+    signal.signal(signal.SIGTRAP, receiveSignal)
+    signal.signal(signal.SIGABRT, receiveSignal)
+    signal.signal(signal.SIGBUS, receiveSignal)
+    signal.signal(signal.SIGFPE, receiveSignal)
+    #signal.signal(signal.SIGKILL, receiveSignal)
+    signal.signal(signal.SIGUSR1, receiveSignal)
+    signal.signal(signal.SIGSEGV, receiveSignal)
+    signal.signal(signal.SIGUSR2, receiveSignal)
+    signal.signal(signal.SIGPIPE, receiveSignal)
+    signal.signal(signal.SIGALRM, receiveSignal)
+    signal.signal(signal.SIGTERM, terminateProcess)
+
+
+# =============================================================================
 def load_data(data_file_path="afp_poller.json"):
     """ Load data from file """
     
@@ -237,6 +271,7 @@ root = tk.Tk()
 root.configure(bg='black')
 root.title(__file__)
 root.state("zoomed")
+root.pack_propagate(0)
 remove_title_bar(root)
 root.bind("<Key>", clavier)
 
@@ -244,7 +279,7 @@ base_font_size=10
 base_paddy=10
 
 root.after(0, populate_with_marquees(news_data, root))
-root.after(5000, delete_and_add_marquee(news_data, root))  # TODO: periodic refresh
+# root.after(5000, delete_and_add_marquee(news_data, root))  # TODO: periodic refresh
 
 root.mainloop()
 
