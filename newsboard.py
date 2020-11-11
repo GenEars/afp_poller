@@ -5,10 +5,11 @@ Created on Mon Nov  9 21:27:31 2020
 @author: Lionel TAILHARDAT
 """
 
+import json
 import logging
 import random
 import platform
-
+import sys
 
 #from tkinter import *  # https://python.doctor/page-tkinter-interface-graphique-python-tutoriel
 import tkinter as tk
@@ -205,12 +206,31 @@ def clavier(event):
     
 # =============================================================================
 
-# News polling
-news_data = ws_get_news(access_token=ws_auth_token())
-# TODO: get news from file
-for news in news_data['docs']:
+def load_data(data_file_path="afp_poller.json"):
+    """ Load data from file """
     
-    logging.debug("NEWS:headline=%s", news['headline'])
+    # Get data
+    data = None
+    try:        
+        with open(data_file_path, "r") as fh:
+            data = json.load(fh)
+    except IOError as e:
+        logging.error("NEWS:LOAD:data_file_path=%s:error=%s", data_file_path, e)
+        return None
+    
+    # Get stats
+    if 'docs' in data.keys():
+        docs_count = len(data['docs'])
+    else:
+        docs_count = 0
+    
+    # Report and return data
+    logging.info("NEWS:LOAD:data_file_path=%s:docs_count=%s", data_file_path, docs_count)
+    return data
+
+news_data = load_data()
+if news_data is None:
+    sys.exit(1)
 
 # GUI init
 root = tk.Tk()
@@ -224,7 +244,7 @@ base_font_size=10
 base_paddy=10
 
 root.after(0, populate_with_marquees(news_data, root))
-root.after(5000, delete_and_add_marquee(news_data, root))
+root.after(5000, delete_and_add_marquee(news_data, root))  # TODO: periodic refresh
 
 root.mainloop()
 
