@@ -89,20 +89,22 @@ class Marquee(tk.Canvas):
         Source: https://stackoverflow.com/questions/47224061/how-to-make-marquee-on-tkinter-in-label
     """
     def __init__(self, parent, text, margin=2, borderwidth=0,
-                 relief='flat', fps=30,
-                 bg='black', fg='white',
-                 font_name="Arial", font_size=10,
-                 index=0):
+                 fps=30,
+                 relief='flat',
+                 bg='black',
+                 fg='white',
+                 font_name="Arial",
+                 font_size=10):
 
-        logging.debug("MARQUEE:INIT:text=%s:index=%s:font_size=%s", text, index, font_size)
+        logging.debug("MARQUEE:INIT:text=%s:font_size=%s", text, font_size)
 
         tk.Canvas.__init__(self,
                            parent,
                            borderwidth=borderwidth,
                            relief=relief,
-                           background=bg)
+                           background=bg,
+                           highlightthickness=0)
         self.fps = fps
-        self.index = index
 
         # start by drawing the text off screen, then asking the canvas
         # how much space we need. Use that to compute the initial size
@@ -112,9 +114,9 @@ class Marquee(tk.Canvas):
                 text=text,
                 anchor="w",
                 font=(font_name, font_size),
-                tags=("text_%s" % index,),
+                tags=("text",),
                 fill=fg)
-        (x0, y0, x1, y1) = self.bbox("text_%s" % index)
+        (x0, y0, x1, y1) = self.bbox("text")
         
         width = (x1 - x0) + (2*margin) + (2*borderwidth)
         height = (y1 - y0) + (2*margin) + (2*borderwidth)
@@ -125,28 +127,27 @@ class Marquee(tk.Canvas):
         self.animate()
 
     def animate(self):
-        (x0, y0, x1, y1) = self.bbox("text_%s" % self.index)
+        (x0, y0, x1, y1) = self.bbox("text")
         if x1 < 0 or y0 < 0:
             # everything is off the screen; reset the X
             # to be just past the right margin
             x0 = self.winfo_width()
             y0 = int(self.winfo_height()/2)
-            self.coords("text_%s" % self.index, x0, y0)
+            self.coords("text", x0, y0)
         else:
-            self.move("text_%s" % self.index, -1, 0)
+            self.move("text", -1, 0)
 
         # do again in a few milliseconds
         self.after_id = self.after(int(1000/self.fps), self.animate)
 
 
-def make_marquee(parent_win, marquee_text, font_size, marquee_pady, index):
+def make_marquee(parent_win, marquee_text, font_size, marquee_pady):
     """ Create a Marquee canvas on parent_win """
     marquee = Marquee(
             parent_win,
             text=marquee_text,
             borderwidth=0, relief="flat",
-            font_size=font_size,
-            index=index)
+            font_size=font_size)
     marquee.pack(side="top", fill="x", pady=marquee_pady)
 
 
@@ -185,20 +186,43 @@ def delete_marquee_by_index(parent_win, index=None):
         return False
 
     # Delete object by name
-    return delete_marquee_by_name(parent_win, object_name)    
-    #TODO: keep window size constant when deleting
+    return delete_marquee_by_name(parent_win, object_name)
+    # TODO: smooth destroy()
+    # TODO: keep window size constant when deleting
 
 
-def clavier(event):
-    """ GUI's keyboard event handler """
-    touche = event.keysym
-    logging.debug("EVENT:clavier:touche=%s", touche)
 
-    if touche == "Escape":
-        root.destroy()
-    elif touche == "space":
-        delete_marquee_by_index(root)
-        
+def add_marquee(
+        data,
+        parent_win,
+        index=0):
+    """ Add a Marquee canvas with text randomly selected from data """
+
+    # Prepare message to be shown
+    random_index = random_news_index(data)
+    # TODO: try not no draw a news that is already shown
+    text_to_display = "{0} ({1})".format(
+            data['docs'][random_index]['headline'],  # Alternatives: caption / headline
+            data['docs'][random_index]['published'])
+    logging.info("MARQUEE:ADD:random_index=%s:text_do_display=%s", random_index, text_to_display)
+    
+    # Call Marquee builder
+    make_marquee(
+            parent_win,
+            text_to_display,
+            font_size = base_font_size + random.randint(-base_font_size + 5, 40),
+            marquee_pady = base_paddy + random.randint(-base_paddy + 1, base_paddy + 10))
+
+
+def populate_with_marquees(data, parent_win, news_count=10):
+    """ Add multiple Marquees canvas """
+    for index in range(0, news_count):
+        add_marquee(
+                data,
+                parent_win,
+                index)
+
+
 def remove_title_bar(parent_win):
     """ Remove GUI's title bar """
 
@@ -208,14 +232,20 @@ def remove_title_bar(parent_win):
     
     # TODO: remove title bar for Windows OS
 
-def populate_with_marquees(data, parent_win, news_count=10):
-    for index in range(0, news_count):
-        make_marquee(
-                parent_win,
-                data['docs'][random_news_index(data)]['headline'],
-                font_size = base_font_size + random.randint(-base_font_size + 5, 40),
-                marquee_pady = base_paddy + random.randint(-base_paddy + 1, base_paddy + 10),
-                index=index)
+
+def clavier(event):
+    """ GUI's keyboard event handler """
+    
+    touche = event.keysym
+    logging.debug("EVENT:clavier:touche=%s", touche)
+
+    if touche == "Escape":
+        root.destroy()
+    elif touche == "space":
+        delete_marquee_by_index(root)
+    elif touche == "Return":
+        add_marquee(news_data, root)
+        
     
 # =============================================================================
 
