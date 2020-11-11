@@ -150,9 +150,43 @@ def make_marquee(parent_win, marquee_text, font_size, marquee_pady, index):
     marquee.pack(side="top", fill="x", pady=marquee_pady)
 
 
-def delete_marquee(parent_win, index):
-    """ Delete a Marquee canvas on parent_win """
-    pass
+def delete_marquee_by_name(parent_win, name):
+    """ Delete a Marquee canvas on parent_win by its name """
+
+    if name in parent_win.children.keys():
+        marquee_object = parent_win.children[name]
+        marquee_object.destroy()
+        done = True
+    else:
+        logging.warning("MARQUEE:DELETE_BY_NAME:name doesn't exist", name)
+        done = False
+    
+    logging.debug("MARQUEE:DELETE_BY_NAME:name='%s':done=%s", name, done)
+    return done
+
+
+def delete_marquee_by_index(parent_win, index=None):
+    """ Delete a Marquee canvas on parent_win by its index or randomly """
+
+    # Retrieve object names as list
+    object_list = list(parent_win.children.keys())
+
+    # Compute a random object if index is not set
+    if (index is None) and (len(object_list) > 0):
+        index = random.randint(0, len(parent_win.children.keys()) - 1)
+        logging.debug("MARQUEE:DELETE_BY_INDEX:index=%s:randomly selected", index)
+
+    # Check that index is correct, then get corresponding object name
+    if index < len(object_list):
+        object_name = object_list[index]
+        logging.debug("MARQUEE:DELETE_BY_INDEX:object_name=%s", object_name)
+    else:
+        logging.warning("MARQUEE:DELETE_BY_INDEX:incorrect index (must be between 0 and %s)", object_name, len(object_list) - 1)
+        return False
+
+    # Delete object by name
+    return delete_marquee_by_name(parent_win, object_name)    
+    #TODO: keep window size constant when deleting
 
 
 def clavier(event):
@@ -163,7 +197,7 @@ def clavier(event):
     if touche == "Escape":
         root.destroy()
     elif touche == "space":
-        pass
+        delete_marquee_by_index(root)
         
 def remove_title_bar(parent_win):
     """ Remove GUI's title bar """
@@ -173,12 +207,21 @@ def remove_title_bar(parent_win):
         root.wm_attributes('-type', 'splash')
     
     # TODO: remove title bar for Windows OS
+
+def populate_with_marquees(data, parent_win, news_count=10):
+    for index in range(0, news_count):
+        make_marquee(
+                parent_win,
+                data['docs'][random_news_index(data)]['headline'],
+                font_size = base_font_size + random.randint(-base_font_size + 5, 40),
+                marquee_pady = base_paddy + random.randint(-base_paddy + 1, base_paddy + 10),
+                index=index)
     
 # =============================================================================
 
 # News polling
 news_data = ws_get_news(access_token=ws_auth_token())
-
+# TODO: get news from file
 for news in news_data['docs']:
     
     logging.debug("NEWS:headline=%s", news['headline'])
@@ -194,13 +237,7 @@ root.bind("<Key>", clavier)
 base_font_size=10
 base_paddy=10
 
-for index in range(0, 10):
-    make_marquee(
-            root,
-            news_data['docs'][random_news_index(news_data)]['headline'],
-            font_size = base_font_size + random.randint(-base_font_size + 5, 40),
-            marquee_pady = base_paddy + random.randint(-base_paddy + 1, base_paddy + 10),
-            index=index)
+root.after(0, populate_with_marquees(news_data, root))
 
 root.mainloop()
 
