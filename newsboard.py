@@ -26,7 +26,7 @@ import tkinter as tk
 
 
 # =============================================================================
-# GUI definitions
+# Marquee class
 
 class Marquee(tk.Canvas):
     """
@@ -86,29 +86,170 @@ class Marquee(tk.Canvas):
         self.after_id = self.after(int(1000/self.fps), self.animate)
 
 # =============================================================================
-# App definitions
+# Gui class
    
 class GuiPart:
-    def __init__(self, master, queue, endCommand):
-        self.queue = queue
-        # Set up the GUI
-        console = Tkinter.Button(master, text='Done', command=endCommand)
-        console.pack()
-        # Add more GUI stuff here
+    def __init__(self, parent_win, end_command):
+        
+        # Object properties
+        self.parent_win = parent_win
+        self.end_command = end_command
+        self.base_font_size = 10
+        self.base_paddy = 10
+        self.expected_marquee_count = 10
 
-    def processIncoming(self):
-        """
-        Handle all the messages currently in the queue (if any).
-        """
-        while self.queue.qsize():
-            try:
-                msg = self.queue.get(0)
-                # Check contents of message and do what it says
-                # As a test, we simply print it
-                print msg
-            except Queue.Empty:
-                pass
-            
+        self.news_data = None
+
+        # Set up the App
+        parent_win.bind("<Key>", self.clavier)
+        self.remove_title_bar()
+
+        # Initial data load
+        if self.load_data() == False:
+            sys.exit(1)
+
+        # Populate the GUI
+        for index in range(0, self.expected_marquee_count):
+            self.add_marquee()
+
+
+    def remove_title_bar(self):
+        """ Remove GUI's title bar """
+    
+        if platform.system() == "Linux":
+            # Tk 8.5 or above, Linux system
+            self.parent_win.wm_attributes('-type', 'splash')
+        
+        # TODO: remove title bar for Windows OS
+          
+        
+    def load_data(self, data_file_path="afp_poller.json"):
+        """ Load data from file """
+        
+        # Get data
+        try:        
+            with open(data_file_path, "r") as fh:
+                self.news_data = json.load(fh)
+        except IOError as e:
+            logging.error("NEWS:LOAD:data_file_path=%s:error=%s", data_file_path, e)
+            return False
+        
+        # Get stats
+        if 'docs' in self.news_data.keys():
+            docs_count = len(self.news_data['docs'])
+        else:
+            docs_count = 0
+        
+        # Report and return data
+        logging.info("NEWS:LOAD:data_file_path=%s:docs_count=%s", data_file_path, docs_count)
+        return True
+
+
+    def clavier(self, event):
+        """ GUI's keyboard event handler """
+        
+        touche = event.keysym
+        logging.debug("EVENT:clavier:touche=%s", touche)
+    
+        if touche == "Escape":
+            self.parent_win.destroy()
+        elif touche == "space":
+            self.delete_marquee_by_index()
+        elif touche == "Return":
+            self.add_marquee()
+        elif touche == "Tab":
+            self.refresh_content()
+        elif touche == "l":
+            if self.load_data() == False:
+                sys.exit(1)
+        else:
+            logging.debug("EVENT:clavier:touche=%s:%s", touche, 'not handled')
+
+
+    def random_news_index(self):
+        """ Get a valid random index over retrieved news """
+        return random.randint(0, len(self.news_data['docs']) - 1)
+    
+    
+    def make_marquee(self, marquee_text, font_size, marquee_pady):
+        """ Create a Marquee canvas on parent_win """
+        marquee = Marquee(
+                self.parent_win,
+                text=marquee_text,
+                borderwidth=0, relief="flat",
+                font_size=font_size)
+        marquee.pack(side="top", fill="x", pady=marquee_pady)
+
+    
+    def add_marquee(self):
+        """ Add a Marquee canvas with text randomly selected from data """
+        
+        # Prepare message to be shown
+        random_index = self.random_news_index()
+        # TODO: try not no draw a news that is already shown
+        text_to_display = "{0} ({1})".format(
+                self.news_data['docs'][random_index]['headline'],  # Alternatives: caption / headline
+                self.news_data['docs'][random_index]['published'])
+        logging.info("MARQUEE:ADD:random_index=%s:text_do_display=%s", random_index, text_to_display)
+        
+        # Call Marquee builder
+        self.make_marquee(
+                text_to_display,
+                font_size = self.base_font_size + random.randint(-self.base_font_size + 5, 40),
+                marquee_pady = self.base_paddy + random.randint(-self.base_paddy + 1, self.base_paddy + 10))
+
+    
+    def delete_marquee_by_name(self, name):
+        """ Delete a Marquee canvas on parent_win by its name """
+    
+        # TODO: smooth destroy
+        if name in self.parent_win.children.keys():
+            marquee_object = self.parent_win.children[name]
+            marquee_object.destroy()
+            done = True
+        else:
+            logging.warning("MARQUEE:DELETE_BY_NAME:name doesn't exist", name)
+            done = False
+        
+        logging.debug("MARQUEE:DELETE_BY_NAME:name='%s':done=%s", name, done)
+        return done
+    
+    
+    def delete_marquee_by_index(self, index=None):
+        """ Delete a Marquee canvas on parent_win by its index or randomly """
+    
+        # Retrieve object names as list
+        object_list = list(self.parent_win.children.keys())
+    
+        # Compute a random object if index is not set
+        if (index is None) and (len(object_list) > 0):
+            index = random.randint(0, len(self.parent_win.children.keys()) - 1)
+            logging.debug("MARQUEE:DELETE_BY_INDEX:index=%s:randomly selected", index)
+    
+        # Check that index is correct, then get corresponding object name
+        if index < len(object_list):
+            object_name = object_list[index]
+            logging.debug("MARQUEE:DELETE_BY_INDEX:object_name=%s", object_name)
+        else:
+            logging.warning("MARQUEE:DELETE_BY_INDEX:incorrect index (must be between 0 and %s)", object_name, len(object_list) - 1)
+            return False
+    
+        # Delete object by name
+        return self.delete_marquee_by_name(object_name)
+        # TODO: smooth destroy()
+        # TODO: keep window size constant when deleting
+    
+    
+    def refresh_content(self):
+        """ Random deletion of a Marquee and add a new one """
+        logging.debug("MARQUEE:refresh_content")
+        self.delete_marquee_by_index()
+        self.add_marquee()
+
+        
+# =============================================================================
+# ThreadedClient class
+
 class ThreadedClient:
     """
     Launch the main part of the GUI and the worker thread. periodicCall and
@@ -123,17 +264,11 @@ class ThreadedClient:
         """
         self.master = master
 
-        # Create the queue
-        self.queue = Queue.Queue()
-
         # Set up the GUI part
-        self.gui = GuiPart(master, self.queue, self.endApplication)
+        self.gui = GuiPart(master, self.endApplication)
 
-        # Set up the thread to do asynchronous I/O
-        # More can be made if necessary
+        # Threaded flags
         self.running = 1
-    	self.thread1 = threading.Thread(target=self.workerThread1)
-        self.thread1.start()
 
         # Start the periodic call in the GUI to check if the queue contains
         # anything
@@ -143,152 +278,21 @@ class ThreadedClient:
         """
         Check every 100 ms if there is something new in the queue.
         """
-        self.gui.processIncoming()
+        self.gui.refresh_content()
         if not self.running:
             # This is the brutal stop of the system. You may want to do
             # some cleanup before actually shutting it down.
-            import sys
             sys.exit(1)
-        self.master.after(100, self.periodicCall)
+        self.master.after(5000, self.periodicCall)
 
-    def workerThread1(self):
-        """
-        This is where we handle the asynchronous I/O. For example, it may be
-        a 'select()'.
-        One important thing to remember is that the thread has to yield
-        control.
-        """
-        while self.running:
-            # To simulate asynchronous I/O, we create a random number at
-            # random intervals. Replace the following 2 lines with the real
-            # thing.
-            time.sleep(rand.random() * 0.3)
-            msg = rand.random()
-            self.queue.put(msg)
 
     def endApplication(self):
         self.running = 0
     
-def random_news_index(data):
-    """ Get a valid random index over retrieved news """
-    return random.randint(0, len(data['docs']) - 1)
 
-
-def make_marquee(parent_win, marquee_text, font_size, marquee_pady):
-    """ Create a Marquee canvas on parent_win """
-    marquee = Marquee(
-            parent_win,
-            text=marquee_text,
-            borderwidth=0, relief="flat",
-            font_size=font_size)
-    marquee.pack(side="top", fill="x", pady=marquee_pady)
-
-
-def delete_marquee_by_name(parent_win, name):
-    """ Delete a Marquee canvas on parent_win by its name """
-
-    if name in parent_win.children.keys():
-        marquee_object = parent_win.children[name]
-        marquee_object.destroy()
-        done = True
-    else:
-        logging.warning("MARQUEE:DELETE_BY_NAME:name doesn't exist", name)
-        done = False
-    
-    logging.debug("MARQUEE:DELETE_BY_NAME:name='%s':done=%s", name, done)
-    return done
-
-
-def delete_marquee_by_index(parent_win, index=None):
-    """ Delete a Marquee canvas on parent_win by its index or randomly """
-
-    # Retrieve object names as list
-    object_list = list(parent_win.children.keys())
-
-    # Compute a random object if index is not set
-    if (index is None) and (len(object_list) > 0):
-        index = random.randint(0, len(parent_win.children.keys()) - 1)
-        logging.debug("MARQUEE:DELETE_BY_INDEX:index=%s:randomly selected", index)
-
-    # Check that index is correct, then get corresponding object name
-    if index < len(object_list):
-        object_name = object_list[index]
-        logging.debug("MARQUEE:DELETE_BY_INDEX:object_name=%s", object_name)
-    else:
-        logging.warning("MARQUEE:DELETE_BY_INDEX:incorrect index (must be between 0 and %s)", object_name, len(object_list) - 1)
-        return False
-
-    # Delete object by name
-    return delete_marquee_by_name(parent_win, object_name)
-    # TODO: smooth destroy()
-    # TODO: keep window size constant when deleting
-
-
-
-def add_marquee(
-        data,
-        parent_win):
-    """ Add a Marquee canvas with text randomly selected from data """
-
-    # TODO: export in a Class parameter
-    base_font_size=10
-    base_paddy=10
-
-    # Prepare message to be shown
-    random_index = random_news_index(data)
-    # TODO: try not no draw a news that is already shown
-    text_to_display = "{0} ({1})".format(
-            data['docs'][random_index]['headline'],  # Alternatives: caption / headline
-            data['docs'][random_index]['published'])
-    logging.info("MARQUEE:ADD:random_index=%s:text_do_display=%s", random_index, text_to_display)
-    
-    # Call Marquee builder
-    make_marquee(
-            parent_win,
-            text_to_display,
-            font_size = base_font_size + random.randint(-base_font_size + 5, 40),
-            marquee_pady = base_paddy + random.randint(-base_paddy + 1, base_paddy + 10))
-
-
-def delete_and_add_marquee(data, parent_win):
-    """ Random deletion of a Marquee and add a new one """
-    delete_marquee_by_index(parent_win)
-    add_marquee(data, parent_win)
-    
-
-def populate_with_marquees(data, parent_win, news_count=10):
-    """ Add multiple Marquees canvas """
-    for index in range(0, news_count):
-        add_marquee(
-                data,
-                parent_win)
-
-
-def remove_title_bar(parent_win):
-    """ Remove GUI's title bar """
-
-    if platform.system() == "Linux":
-        # Tk 8.5 or above, Linux system
-        root.wm_attributes('-type', 'splash')
-    
-    # TODO: remove title bar for Windows OS
-
-
-def clavier(event):
-    """ GUI's keyboard event handler """
-    
-    touche = event.keysym
-    logging.debug("EVENT:clavier:touche=%s", touche)
-
-    if touche == "Escape":
-        root.destroy()
-    elif touche == "space":
-        delete_marquee_by_index(root)
-    elif touche == "Return":
-        add_marquee(news_data, root)
-        
-    
 # =============================================================================
+# General helpers
+
 def readConfiguration(signalNumber, frame):
     logging.debug("SIGNAL:Received=%s", '(SIGHUP) reading configuration')
     return
@@ -320,29 +324,8 @@ def register_signals():
     signal.signal(signal.SIGTERM, terminateProcess)
 
 
-# =============================================================================
-def load_data(data_file_path="afp_poller.json"):
-    """ Load data from file """
-    
-    # Get data
-    data = None
-    try:        
-        with open(data_file_path, "r") as fh:
-            data = json.load(fh)
-    except IOError as e:
-        logging.error("NEWS:LOAD:data_file_path=%s:error=%s", data_file_path, e)
-        return None
-    
-    # Get stats
-    if 'docs' in data.keys():
-        docs_count = len(data['docs'])
-    else:
-        docs_count = 0
-    
-    # Report and return data
-    logging.info("NEWS:LOAD:data_file_path=%s:docs_count=%s", data_file_path, docs_count)
-    return data
 
+# =============================================================================
 
 def main():
     """ Load data, start GUI and listen to events """    
@@ -360,24 +343,15 @@ def main():
     if platform.system() == "Linux":
         register_signals()
 
-    # Load data
-    news_data = load_data()
-    if news_data is None:
-        sys.exit(1)
-    
     # GUI init
     root = tk.Tk()
+
     root.configure(bg='black')
     root.title(__file__)
     root.state("zoomed")
     root.pack_propagate(0)
-    remove_title_bar(root)
-    root.bind("<Key>", clavier)
-    
-    
-    root.after(0, populate_with_marquees(news_data, root))
-    # root.after(5000, delete_and_add_marquee(news_data, root))  # TODO: periodic refresh
-    
+  
+    client = ThreadedClient(root)
     root.mainloop()
     
     # TODO: news par défaut
