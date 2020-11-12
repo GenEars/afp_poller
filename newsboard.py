@@ -3,6 +3,11 @@
 Created on Mon Nov  9 21:27:31 2020
 
 @author: Lionel TAILHARDAT
+
+newsboard:
+    GUI to display news coming from afp_poller.py
+    Keyboard can control basic GUI's behavior.
+    On Linux platforms, GUI's may also be controled with POSIX signals.
 """
 
 import json
@@ -13,27 +18,15 @@ import platform
 import signal
 import sys
 
+import time
+import threading
+
 #from tkinter import *  # https://python.doctor/page-tkinter-interface-graphique-python-tutoriel
 import tkinter as tk
 
 
 # =============================================================================
-# Initialisation du loggeur
-loggingFormatString = '%(asctime)s:%(levelname)s:%(threadName)s:%(funcName)s:%(message)s'
-logging.basicConfig(format=loggingFormatString, level=logging.DEBUG)
-
-
-# =============================================================================
-# Démarrage  du traitement
-
-logging.info('INIT')
-
-logging.info("INIT:platform.system=%s", platform.system())
-logging.info("INIT:script.PID=%s", os.getpid())
-
-# =============================================================================
 # GUI definitions
-
 
 class Marquee(tk.Canvas):
     """
@@ -92,6 +85,90 @@ class Marquee(tk.Canvas):
         # do again in a few milliseconds
         self.after_id = self.after(int(1000/self.fps), self.animate)
 
+# =============================================================================
+# App definitions
+   
+class GuiPart:
+    def __init__(self, master, queue, endCommand):
+        self.queue = queue
+        # Set up the GUI
+        console = Tkinter.Button(master, text='Done', command=endCommand)
+        console.pack()
+        # Add more GUI stuff here
+
+    def processIncoming(self):
+        """
+        Handle all the messages currently in the queue (if any).
+        """
+        while self.queue.qsize():
+            try:
+                msg = self.queue.get(0)
+                # Check contents of message and do what it says
+                # As a test, we simply print it
+                print msg
+            except Queue.Empty:
+                pass
+            
+class ThreadedClient:
+    """
+    Launch the main part of the GUI and the worker thread. periodicCall and
+    endApplication could reside in the GUI part, but putting them here
+    means that you have all the thread controls in a single place.
+    """
+    def __init__(self, master):
+        """
+        Start the GUI and the asynchronous threads. We are in the main
+        (original) thread of the application, which will later be used by
+        the GUI. We spawn a new thread for the worker.
+        """
+        self.master = master
+
+        # Create the queue
+        self.queue = Queue.Queue()
+
+        # Set up the GUI part
+        self.gui = GuiPart(master, self.queue, self.endApplication)
+
+        # Set up the thread to do asynchronous I/O
+        # More can be made if necessary
+        self.running = 1
+    	self.thread1 = threading.Thread(target=self.workerThread1)
+        self.thread1.start()
+
+        # Start the periodic call in the GUI to check if the queue contains
+        # anything
+        self.periodicCall()
+
+    def periodicCall(self):
+        """
+        Check every 100 ms if there is something new in the queue.
+        """
+        self.gui.processIncoming()
+        if not self.running:
+            # This is the brutal stop of the system. You may want to do
+            # some cleanup before actually shutting it down.
+            import sys
+            sys.exit(1)
+        self.master.after(100, self.periodicCall)
+
+    def workerThread1(self):
+        """
+        This is where we handle the asynchronous I/O. For example, it may be
+        a 'select()'.
+        One important thing to remember is that the thread has to yield
+        control.
+        """
+        while self.running:
+            # To simulate asynchronous I/O, we create a random number at
+            # random intervals. Replace the following 2 lines with the real
+            # thing.
+            time.sleep(rand.random() * 0.3)
+            msg = rand.random()
+            self.queue.put(msg)
+
+    def endApplication(self):
+        self.running = 0
+    
 def random_news_index(data):
     """ Get a valid random index over retrieved news """
     return random.randint(0, len(data['docs']) - 1)
@@ -152,6 +229,10 @@ def add_marquee(
         data,
         parent_win):
     """ Add a Marquee canvas with text randomly selected from data """
+
+    # TODO: export in a Class parameter
+    base_font_size=10
+    base_paddy=10
 
     # Prepare message to be shown
     random_index = random_news_index(data)
@@ -262,36 +343,57 @@ def load_data(data_file_path="afp_poller.json"):
     logging.info("NEWS:LOAD:data_file_path=%s:docs_count=%s", data_file_path, docs_count)
     return data
 
-news_data = load_data()
-if news_data is None:
-    sys.exit(1)
 
-# GUI init
-root = tk.Tk()
-root.configure(bg='black')
-root.title(__file__)
-root.state("zoomed")
-root.pack_propagate(0)
-remove_title_bar(root)
-root.bind("<Key>", clavier)
+def main():
+    """ Load data, start GUI and listen to events """    
+    
+    # Initialisation du loggeur
+    loggingFormatString = '%(asctime)s:%(levelname)s:%(threadName)s:%(funcName)s:%(message)s'
+    logging.basicConfig(format=loggingFormatString, level=logging.DEBUG)
+    
+    
+    # Démarrage  du traitement    
+    logging.info('INIT')    
+    logging.info("INIT:platform.system=%s", platform.system())
 
-base_font_size=10
-base_paddy=10
+    # Register POSIX signals callback on Linux platforms
+    if platform.system() == "Linux":
+        register_signals()
 
-root.after(0, populate_with_marquees(news_data, root))
-# root.after(5000, delete_and_add_marquee(news_data, root))  # TODO: periodic refresh
-
-root.mainloop()
-
-# TODO: news par défaut
-# TODO: update des news
-# TODO: update des marquee
-# TODO: appel à distance
-# TODO: argparse avec log level
-# TODO: fps dans argparse
-# TODO: logging dans syslog
+    # Load data
+    news_data = load_data()
+    if news_data is None:
+        sys.exit(1)
+    
+    # GUI init
+    root = tk.Tk()
+    root.configure(bg='black')
+    root.title(__file__)
+    root.state("zoomed")
+    root.pack_propagate(0)
+    remove_title_bar(root)
+    root.bind("<Key>", clavier)
+    
+    
+    root.after(0, populate_with_marquees(news_data, root))
+    # root.after(5000, delete_and_add_marquee(news_data, root))  # TODO: periodic refresh
+    
+    root.mainloop()
+    
+    # TODO: news par défaut
+    # TODO: update des news
+    # TODO: update des marquee
+    # TODO: appel à distance
+    # TODO: argparse avec log level
+    # TODO: fps dans argparse
+    # TODO: logging dans syslog
+    
+    
+    logging.info('END')
+    return 0  # TODO: gérer les exceptions et le code retour
 
 # =============================================================================
 
-logging.info('END')
-# TODO: __main()__
+if __name__ == '__main__':
+    ret_code = main()
+    sys.exit(ret_code)
