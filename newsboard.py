@@ -10,6 +10,7 @@ newsboard:
     On Linux platforms, GUI's may also be controled with POSIX signals.
 """
 
+import datetime
 import json
 import logging
 import os
@@ -17,12 +18,7 @@ import random
 import platform
 import signal
 import sys
-
-import time
-import threading
-
-#from tkinter import *  # https://python.doctor/page-tkinter-interface-graphique-python-tutoriel
-import tkinter as tk
+import tkinter as tk  # https://python.doctor/page-tkinter-interface-graphique-python-tutoriel
 
 
 # =============================================================================
@@ -97,6 +93,8 @@ class GuiPart:
         self.base_font_size = 10
         self.base_paddy = 10
         self.expected_marquee_count = 10
+        self.data_file_path = "afp_poller.json"
+        self.docs_count = 0
 
         self.news_data = None
 
@@ -111,6 +109,12 @@ class GuiPart:
         # Populate the GUI
         for index in range(0, self.expected_marquee_count):
             self.add_marquee()
+        self.last_refresh_date = datetime.datetime.now()
+
+
+    def __str__(self):
+        """ Class string function """
+        return "GuiPart object:docs_count=%s:data_file_path=%s:last_refresh_date=%s" % (self.docs_count, self.data_file_path, self.last_refresh_date)
 
 
     def remove_title_bar(self):
@@ -123,25 +127,25 @@ class GuiPart:
         # TODO: remove title bar for Windows OS
           
         
-    def load_data(self, data_file_path="afp_poller.json"):
+    def load_data(self):
         """ Load data from file """
         
         # Get data
         try:        
-            with open(data_file_path, "r") as fh:
+            with open(self.data_file_path, "r") as fh:
                 self.news_data = json.load(fh)
         except IOError as e:
-            logging.error("NEWS:LOAD:data_file_path=%s:error=%s", data_file_path, e)
+            logging.error("NEWS:LOAD:data_file_path=%s:error=%s", self.data_file_path, e)
             return False
         
         # Get stats
         if 'docs' in self.news_data.keys():
-            docs_count = len(self.news_data['docs'])
+            self.docs_count = len(self.news_data['docs'])
         else:
-            docs_count = 0
+            self.docs_count = 0
         
         # Report and return data
-        logging.info("NEWS:LOAD:data_file_path=%s:docs_count=%s", data_file_path, docs_count)
+        logging.info("NEWS:LOAD:data_file_path=%s:docs_count=%s", self.data_file_path, self.docs_count)
         return True
 
 
@@ -245,6 +249,7 @@ class GuiPart:
         logging.debug("MARQUEE:refresh_content")
         self.delete_marquee_by_index()
         self.add_marquee()
+        self.last_refresh_date = datetime.datetime.now()
 
         
 # =============================================================================
@@ -252,19 +257,25 @@ class GuiPart:
 
 class ThreadedClient:
     """
-    Launch the main part of the GUI and the worker thread. periodicCall and
-    endApplication could reside in the GUI part, but putting them here
-    means that you have all the thread controls in a single place.
+    Launch the main part of the GUI and the worker thread.
+    periodicCall and endApplication could reside in the GUI part,
+    but putting them here means that you have all the thread controls 
+    in a single place.
     """
-    def __init__(self, master):
+    def __init__(self, master, refresh_period=30000):
         """
         Start the GUI and the asynchronous threads. We are in the main
         (original) thread of the application, which will later be used by
-        the GUI. We spawn a new thread for the worker.
+        the GUI.
         """
-        self.master = master
+        
+        # Register POSIX signals callback on Linux platforms
+        if platform.system() == "Linux":
+            self.register_signals()
 
         # Set up the GUI part
+        self.refresh_period = refresh_period  # [ms]
+        self.master = master
         self.gui = GuiPart(master, self.endApplication)
 
         # Threaded flags
@@ -282,47 +293,58 @@ class ThreadedClient:
         if not self.running:
             # This is the brutal stop of the system. You may want to do
             # some cleanup before actually shutting it down.
-            sys.exit(1)
-        self.master.after(5000, self.periodicCall)
+            #sys.exit(1)
+            logging.info("END:periodicCall.running=%s", self.running)
+            self.master.destroy()
+        self.master.after(self.refresh_period, self.periodicCall)
 
 
     def endApplication(self):
         self.running = 0
     
 
-# =============================================================================
-# General helpers
-
-def readConfiguration(signalNumber, frame):
-    logging.debug("SIGNAL:Received=%s", '(SIGHUP) reading configuration')
-    return
-
-def terminateProcess(signalNumber, frame):
-    logging.debug("SIGNAL:Received=%s", '(SIGTERM) terminating the process')
-    sys.exit()
+    def readConfiguration(self, signalNumber, frame):
+        logging.debug("SIGNAL:Received=%s", '(SIGHUP) reading configuration')
+        return
     
-def receiveSignal(signalNumber, frame):
-    logging.debug("SIGNAL:Received=%s", signalNumber)
-    return
 
-def register_signals():
-    # register the signals to be caught
-    signal.signal(signal.SIGHUP, readConfiguration)
-    signal.signal(signal.SIGINT, receiveSignal)
-    signal.signal(signal.SIGQUIT, receiveSignal)
-    signal.signal(signal.SIGILL, receiveSignal)
-    signal.signal(signal.SIGTRAP, receiveSignal)
-    signal.signal(signal.SIGABRT, receiveSignal)
-    signal.signal(signal.SIGBUS, receiveSignal)
-    signal.signal(signal.SIGFPE, receiveSignal)
-    #signal.signal(signal.SIGKILL, receiveSignal)
-    signal.signal(signal.SIGUSR1, receiveSignal)
-    signal.signal(signal.SIGSEGV, receiveSignal)
-    signal.signal(signal.SIGUSR2, receiveSignal)
-    signal.signal(signal.SIGPIPE, receiveSignal)
-    signal.signal(signal.SIGALRM, receiveSignal)
-    signal.signal(signal.SIGTERM, terminateProcess)
+    def terminateProcess(self, signalNumber, frame):
+        logging.debug("SIGNAL:Received=%s", '(SIGTERM) terminating the process')
+        sys.exit()
+        
 
+    def userDefinedCondition1(self, signalNumber, frame):
+        logging.debug("SIGNAL:Received=%s", '(SIGUSR1) refresh GUI content')
+        self.gui.refresh_content()
+
+    def userDefinedCondition2(self, signalNumber, frame):
+        logging.debug("SIGNAL:Received=%s", '(SIGUSR2) load data')
+        if self.gui.load_data() == False:
+            sys.exit(1)
+
+
+    def receiveSignal(self, signalNumber, frame):
+        logging.debug("SIGNAL:Received=%s", signalNumber)
+        return
+    
+
+    def register_signals(self):
+        # register the signals to be caught
+        signal.signal(signal.SIGHUP, self.readConfiguration)
+        signal.signal(signal.SIGINT, self.receiveSignal)
+        signal.signal(signal.SIGQUIT, self.receiveSignal)
+        signal.signal(signal.SIGILL, self.receiveSignal)
+        signal.signal(signal.SIGTRAP, self.receiveSignal)
+        signal.signal(signal.SIGABRT, self.receiveSignal)
+        signal.signal(signal.SIGBUS, self.receiveSignal)
+        signal.signal(signal.SIGFPE, self.receiveSignal)
+        #signal.signal(signal.SIGKILL, self.receiveSignal)
+        signal.signal(signal.SIGUSR1, self.userDefinedCondition1)
+        signal.signal(signal.SIGSEGV, self.receiveSignal)
+        signal.signal(signal.SIGUSR2, self.userDefinedCondition2)
+        signal.signal(signal.SIGPIPE, self.receiveSignal)
+        signal.signal(signal.SIGALRM, self.receiveSignal)
+        signal.signal(signal.SIGTERM, self.terminateProcess)
 
 
 # =============================================================================
@@ -339,10 +361,6 @@ def main():
     logging.info('INIT')    
     logging.info("INIT:platform.system=%s", platform.system())
 
-    # Register POSIX signals callback on Linux platforms
-    if platform.system() == "Linux":
-        register_signals()
-
     # GUI init
     root = tk.Tk()
 
@@ -355,9 +373,6 @@ def main():
     root.mainloop()
     
     # TODO: news par défaut
-    # TODO: update des news
-    # TODO: update des marquee
-    # TODO: appel à distance
     # TODO: argparse avec log level
     # TODO: fps dans argparse
     # TODO: logging dans syslog
