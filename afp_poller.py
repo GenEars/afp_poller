@@ -34,7 +34,7 @@ def ws_auth_token(
 def ws_get_news(
         ws_url="https://api.afp.com:443/v1/api/search?wt=xml&access_token=",
         access_token=None,
-        max_rows=50):
+        max_rows=150):
     """ Récupération des news """
 
     # Request parameters
@@ -89,8 +89,6 @@ def main():
     logging.info("NEWS:out_file_path=%s", out_file_path)
 
     # TODO: request par défaut
-    # TODO: update des news
-    # TODO: appel à distance
     # TODO: argparse avec log level
     # TODO: logging dans syslog
 

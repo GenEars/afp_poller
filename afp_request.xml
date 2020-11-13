@@ -1,9 +1,0 @@
-<?xml version="1.0"?>
-<Parameters>
-  <dateRange>
-    <from>now-3d</from>
-    <to>now</to>
-  </dateRange>
-  <lang>fr</lang>
-  <maxRows>10</maxRows>
-</Parameters>

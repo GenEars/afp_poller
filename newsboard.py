@@ -13,7 +13,7 @@ newsboard:
 import datetime
 import json
 import logging
-import os
+#import os
 import random
 import platform
 import signal
@@ -36,8 +36,9 @@ class Marquee(tk.Canvas):
                  fg='white',
                  font_name="Arial",
                  font_size=10):
+        """ Class constructor """
 
-        logging.debug("MARQUEE:INIT:text=%s:font_size=%s", text, font_size)
+        logging.debug("MARQUEE:INIT:text='%s':font_size=%s", text, font_size)
 
         tk.Canvas.__init__(self,
                            parent,
@@ -81,11 +82,13 @@ class Marquee(tk.Canvas):
         # do again in a few milliseconds
         self.after_id = self.after(int(1000/self.fps), self.animate)
 
+            
 # =============================================================================
 # Gui class
    
 class GuiPart:
     def __init__(self, parent_win, end_command):
+        """ Class constructor """
         
         # Object properties
         self.parent_win = parent_win
@@ -135,7 +138,7 @@ class GuiPart:
             with open(self.data_file_path, "r") as fh:
                 self.news_data = json.load(fh)
         except IOError as e:
-            logging.error("NEWS:LOAD:data_file_path=%s:error=%s", self.data_file_path, e)
+            logging.error("NEWS:LOAD:data_file_path='%s':error=%s", self.data_file_path, e)
             return False
         
         # Get stats
@@ -203,7 +206,7 @@ class GuiPart:
                 marquee_pady = self.base_paddy + random.randint(-self.base_paddy + 1, self.base_paddy + 10))
 
     
-    def delete_marquee_by_name(self, name):
+    def delete_marquee_by_name(self, name, fade=True):
         """ Delete a Marquee canvas on parent_win by its name """
     
         # TODO: smooth destroy
@@ -241,7 +244,6 @@ class GuiPart:
         # Delete object by name
         return self.delete_marquee_by_name(object_name)
         # TODO: smooth destroy()
-        # TODO: keep window size constant when deleting
     
     
     def refresh_content(self):
@@ -286,14 +288,9 @@ class ThreadedClient:
         self.periodicCall()
 
     def periodicCall(self):
-        """
-        Check every 100 ms if there is something new in the queue.
-        """
+        """ Refresh news every refresh_period """
         self.gui.refresh_content()
         if not self.running:
-            # This is the brutal stop of the system. You may want to do
-            # some cleanup before actually shutting it down.
-            #sys.exit(1)
             logging.info("END:periodicCall.running=%s", self.running)
             self.master.destroy()
         self.master.after(self.refresh_period, self.periodicCall)
@@ -304,32 +301,41 @@ class ThreadedClient:
     
 
     def readConfiguration(self, signalNumber, frame):
+        """ Signal handling: SIGHUP """
         logging.debug("SIGNAL:Received=%s", '(SIGHUP) reading configuration')
+        # TODO: return info
         return
     
 
     def terminateProcess(self, signalNumber, frame):
+        """ Signal handling: SIGTERM """
         logging.debug("SIGNAL:Received=%s", '(SIGTERM) terminating the process')
         sys.exit()
         
 
     def userDefinedCondition1(self, signalNumber, frame):
+        """ Signal handling: SIGUSR1, gui.refresh_content() """
         logging.debug("SIGNAL:Received=%s", '(SIGUSR1) refresh GUI content')
         self.gui.refresh_content()
 
     def userDefinedCondition2(self, signalNumber, frame):
+        """ Signal handling: SIGUSR2, gui.load_data() """
         logging.debug("SIGNAL:Received=%s", '(SIGUSR2) load data')
         if self.gui.load_data() == False:
             sys.exit(1)
 
 
     def receiveSignal(self, signalNumber, frame):
+        """ Signal handling: echo signal """
         logging.debug("SIGNAL:Received=%s", signalNumber)
         return
     
 
     def register_signals(self):
-        # register the signals to be caught
+        """
+            Signal handling: register the signals to be caught
+            Source: https://www.stackabuse.com/handling-unix-signals-in-python/
+        """
         signal.signal(signal.SIGHUP, self.readConfiguration)
         signal.signal(signal.SIGINT, self.receiveSignal)
         signal.signal(signal.SIGQUIT, self.receiveSignal)
@@ -350,7 +356,7 @@ class ThreadedClient:
 # =============================================================================
 
 def main():
-    """ Load data, start GUI and listen to events """    
+    """ Init, start GUI and listen to events """    
     
     # Initialisation du loggeur
     loggingFormatString = '%(asctime)s:%(levelname)s:%(threadName)s:%(funcName)s:%(message)s'
