@@ -1,6 +1,6 @@
 # afp_poller
 
-Gathering and displaying AFP news on an local newsboard.
+Gathering and displaying [AFP](https://www.afp.com/) news on an local newsboard.
 
 Targetted systems:
 * [X] Windows10,
