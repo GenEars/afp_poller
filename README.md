@@ -19,7 +19,7 @@ python afp_poller.py
 ```
 
 Data is saved on local dir in `afp_poller.json`.
-Data is retrieved from the AFP webservice (see `https://api.afp.com`) with an *anonymous* login (*not* todays news) and an embedded request (see code). 
+Data is retrieved from the AFP webservice (see [api.afp.com](https://api.afp.com)) with an *anonymous* login (*not* todays news) and an embedded request (see code). 
 
 ### Launch and manage the newsboard
 
@@ -78,7 +78,7 @@ Main features:
 You may,
 * Fork and create a merge-request,
 * add an issue,
-* or [buy me a coffee](https://www.buymeacoffee.com/genears) to support my work :) ![buy me a coffee](img/BMC Logo - Black.png)
+* or [buy me a coffee](https://www.buymeacoffee.com/genears) :coffee: to support my work :wink:
 
 ## Licence
 
