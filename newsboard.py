@@ -18,8 +18,15 @@ import random
 import platform
 import signal
 import sys
-import tkinter as tk  # https://python.doctor/page-tkinter-interface-graphique-python-tutoriel
-
+try:
+    # Python 3+
+    import tkinter as tk  # https://python.doctor/page-tkinter-interface-graphique-python-tutoriel
+except ImportError as error:
+    # Output expected ImportErrors.
+    print(error.__class__.__name__ + ": " + error.message)
+    # Python 2
+    print("Trying to import Tkinter (Python2) ...")
+    import Tkinter as tk 
 
 # =============================================================================
 # Marquee class
