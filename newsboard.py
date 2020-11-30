@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# coding: utf-8
 """
 Created on Mon Nov  9 21:27:31 2020
 
@@ -10,6 +10,8 @@ newsboard:
     On Linux platforms, GUI's may also be controled with POSIX signals.
 """
 
+from __future__ import unicode_literals
+
 import datetime
 import json
 import logging
@@ -18,6 +20,9 @@ import random
 import platform
 import signal
 import sys
+
+# =============================================================================
+
 try:
     # Python 3+
     import tkinter as tk  # https://python.doctor/page-tkinter-interface-graphique-python-tutoriel
@@ -27,6 +32,20 @@ except ImportError as error:
     # Python 2
     print("Trying to import Tkinter (Python2) ...")
     import Tkinter as tk 
+
+if sys.version_info[0] < 3:
+    import codecs
+    import warnings
+    def open(file, mode='r', buffering=1, encoding=None,
+             errors=None, newline=None, closefd=True, opener=None):
+        if newline is not None:
+            warning.warn('newline is not supported in py2')
+        if not closefd:
+            warning.warn('closefd is not supported in py2')
+        if opener is not None:
+            warning.warn('opener is not supported in py2')
+        return codecs.open(filename=file, mode=mode, encoding=encoding,
+               errors=errors, buffering=buffering)
 
 # =============================================================================
 # Marquee class
@@ -142,7 +161,7 @@ class GuiPart:
         
         # Get data
         try:        
-            with open(self.data_file_path, "r") as fh:
+            with open(self.data_file_path, "rb", encoding='utf-8') as fh:  # HACK: for Python3+, open with encoding='utf-8' instead of "rb"
                 self.news_data = json.load(fh)
         except IOError as e:
             logging.error("NEWS:LOAD:data_file_path='%s':error=%s", self.data_file_path, e)
@@ -201,9 +220,11 @@ class GuiPart:
         # Prepare message to be shown
         random_index = self.random_news_index()
         # TODO: try not no draw a news that is already shown
-        text_to_display = "{0} ({1})".format(
-                self.news_data['docs'][random_index]['headline'],  # Alternatives: caption / headline
-                self.news_data['docs'][random_index]['published'])
+        text_1 = self.news_data['docs'][random_index]['headline']  # Alternatives: caption / headline
+        text_2 = self.news_data['docs'][random_index]['published']
+        logging.debug("MARQUEE:ADD:random_index=%s:type(headline)=%s:text=%s", random_index, type(text_1), text_1)
+        logging.debug("MARQUEE:ADD:random_index=%s:type(published)=%s:text=%s", random_index, type(text_2), text_2)
+        text_to_display = "{0} ({1})".format(text_1, text_2)
         logging.info("MARQUEE:ADD:random_index=%s:text_do_display=%s", random_index, text_to_display)
         
         # Call Marquee builder
@@ -314,6 +335,11 @@ class ThreadedClient:
         return
     
 
+    def interuptProcess(self, signalNumber, frame):
+        """ Signal handling: SIGINT """
+        logging.debug("SIGNAL:Received=%s", '(SIGINT) terminating the process')
+        sys.exit()
+
     def terminateProcess(self, signalNumber, frame):
         """ Signal handling: SIGTERM """
         logging.debug("SIGNAL:Received=%s", '(SIGTERM) terminating the process')
@@ -344,7 +370,7 @@ class ThreadedClient:
             Source: https://www.stackabuse.com/handling-unix-signals-in-python/
         """
         signal.signal(signal.SIGHUP, self.readConfiguration)
-        signal.signal(signal.SIGINT, self.receiveSignal)
+        signal.signal(signal.SIGINT, self.interuptProcess)
         signal.signal(signal.SIGQUIT, self.receiveSignal)
         signal.signal(signal.SIGILL, self.receiveSignal)
         signal.signal(signal.SIGTRAP, self.receiveSignal)
@@ -379,7 +405,13 @@ def main():
 
     root.configure(bg='black')
     root.title(__file__)
-    root.state("zoomed")
+    try:
+        root.state("zoomed")
+    except Exception as e:
+        # Handling absence of root.state("zoomed") from Tkinter
+        logging.warning("INIT:_tkinter zoomed TclError=%s", e)
+        root.state("normal")  # TODO: center and resize window
+
     root.pack_propagate(0)
   
     client = ThreadedClient(root)

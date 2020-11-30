@@ -5,7 +5,7 @@ Gathering and displaying [AFP](https://www.afp.com/) news on an local newsboard.
 Targetted systems:
 * [X] Windows10,
 * [ ] Linux Ubuntu,
-* [ ] Angstrom v2016.12 on Chameleon96 board.
+* [X] Angstrom v2016.12 on Chameleon96 board (** notes about install TBD **).
 
 
 ## Usage
@@ -40,9 +40,9 @@ The newsboard can be managed with the keyboard:
 * `Enter`: add a randomly selected headline to the display,
 * `Tab`: delete and add a headline.
 
-On Linux systems, the newsboard can also be managed with POSIX signals (** to be tested **):
-* `SIGUSR1`: refresh GUI content (equiv. `Tab` key),
-* `SIGUSR2`: (re)load data from `afp_poller.json`.
+On Linux systems, the newsboard can also be managed with POSIX signals:
+* `SIGUSR1`: refresh GUI content (equiv. `Tab` key), e.g. `kill -10 <newsboard PID>`,
+* `SIGUSR2`: (re)load data from `afp_poller.json`, e.g. `kill -12 <newsboard PID>`.
 
 Headlines are moving from right to left:
 ![newsboard](img/newsboard_2020-11-14_17-14-00.png)
@@ -66,10 +66,10 @@ Main features:
 * [X] AFP news poller
 * [X] Newsboard app
 * [X] Documentation
-* [ ] Posix signal handling
+* [X] Posix signal handling
 * [ ] cron example files
 * [ ] Complementary webservice for remote management
-* [ ] Linux testing
+* [X] Linux testing
 * [ ] Unit testing
 
 
